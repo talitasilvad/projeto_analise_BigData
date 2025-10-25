@@ -1,6 +1,6 @@
 import pandas as pd
 
-pasta_arquivos = "arquivos_gerados/dados_tic_kids_geral.xlsx"
+pasta_arquivos = "arquivos_gerados/dados_tic_kids_geral.csv"
 
 arquivos_tic_kids =[
     ("arquivos_gerados/tic_kids_2017_tratado.xlsx", 2017),
@@ -21,5 +21,5 @@ for arquivo, ano in arquivos_tic_kids:
 
 df_final = pd.concat(lista_dataframes, ignore_index=True)
 
-df_final.to_excel(pasta_arquivos, index=False)
+df_final.to_csv(pasta_arquivos, index=False, encoding="utf-8-sig")
 print(f"Arquivo salvo: {pasta_arquivos}")
