@@ -24,69 +24,156 @@ csv_file = '/content/sample_data/dados_tic_kids_geral.csv'
 read_file = pd.read_excel(excel_file)
 read_file.to_csv(csv_file, index = None, header=True)
 
+#Instalando o java pq aparentemende os recursos do collab reiniciaram
+!apt-get install openjdk-8-jdk-headless -qq > /dev/null
+
+# Cria a variavel de ambiente JAVA_HOME para q o spark encontre o java
+import os
+os.environ["JAVA_HOME"] = "/usr/lib/jvm/java-8-openjdk-amd64"
+
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, coalesce, lit, count, round as spark_round
+from pyspark.sql.functions import when, col, coalesce, lit, count, round as spark_round
 spark = SparkSession.builder.master("local[*]").appName("Tic_Kids_Analise").getOrCreate()
 
 dataset = spark.read.csv('../content/sample_data/dados_tic_kids_geral.csv', header=True, inferSchema=True, multiLine=True, escape='"')
-# dataset.printSchema()
+
+# # Esse código apenas passa por todos os valores das colunas de uma linha e caso um valor seja nulo ele pega o valor da prox coluna
+# # dataset_unificado = dataset.withColumn(
+# #     "uso_rede_social",
+# #     coalesce(
+# #         col(dataset.columns[4]),
+# #         col(dataset.columns[10]),
+# #         col(dataset.columns[12]),
+# #     )
+# # )
+# # dataset_unificado = dataset_unificado.withColumn(
+# #     "freq_rede_social",
+# #     coalesce(
+# #         col(dataset.columns[5]),
+# #         col(dataset.columns[7]),
+# #         col(dataset.columns[11]),
+# #         col(dataset.columns[13]),
+# #     )
+# # )
+
+#Esse código faz com que caso um dos valores das colunas de USO de Rede Social da linha seja Sim o resultado final vai ser Sim
+
+uso_redes_1 = col(dataset.columns[4])
+uso_redes_2 = col(dataset.columns[10])
+uso_redes_3 = col(dataset.columns[12])
+
+respostas_nao_contaveis = ["Não sabe", "Não respondeu", "Não se aplica"]
 
 dataset_unificado = dataset.withColumn(
     "uso_rede_social",
-    coalesce(
-        col(dataset.columns[4]),)
+    when((uso_redes_1 == "Sim") | (uso_redes_2 == "Sim") | (uso_redes_3 == "Sim"),"Sim")
+    .when((uso_redes_1 == "Não") | (uso_redes_2 == "Não") | (uso_redes_3 == "Não"),"Não")
+    .otherwise("Não se aplica ou Não sabe/respondeu")
 )
-# Vou utilizar apenas a 5ª Coluna por enquanto
-# "Nos últimos três meses, a criança/adolescente mandou mensagens no Whatsapp, Snapchat ou chat do Facebook?"
-#
-#
-#         col(dataset.columns[10]),
-#         col(dataset.columns[12]),
-#     )
-# )
 
-# dataset_unificado = dataset_unificado.withColumn(
-#     "freq_rede_social",
-#     coalesce(
-#         col(dataset.columns[5]),
-#         col(dataset.columns[7]),
-#         col(dataset.columns[11]),
-#         col(dataset.columns[13]),
-#     )
-# )
+#Esse código faz com que caso um dos valores das colunas de FREQUENCIA da linha seja a
+#resposta de maior intensidade de uso das redes (Mais de uma vez por dia) o resultado final vai ser a resp de maior intensidade de uso das redes
+#Ex: Caso o aluno use o Whatsapp uma vez por dia, mas usa o Tiktok uma vez por semana dá pra se constar que ele usa as Redes Sociais mais de uma vez por dia
+
+freq_redes_1 = col(dataset.columns[5])
+freq_redes_2 = col(dataset.columns[11])
+freq_redes_3 = col(dataset.columns[13])
+
+
+dataset_unificado = dataset_unificado.withColumn(
+    "freq_rede_social",
+    when((freq_redes_1 == "Mais de uma vez por dia") | (freq_redes_2 == "Mais de uma vez por dia") |
+         (freq_redes_3 == "Mais de uma vez por dia"),"Mais de uma vez por dia")
+    .when((freq_redes_1 == "Pelo menos uma vez por dia") | (freq_redes_2 == "Pelo menos uma vez por dia") |
+         (freq_redes_3 == "Pelo menos uma vez por dia"),"Pelo menos uma vez por dia")
+    .when((freq_redes_1 == "Pelo menos uma vez por semana") | (freq_redes_2 == "Pelo menos uma vez por semana") |
+         (freq_redes_3 == "Pelo menos uma vez por semana"),"Pelo menos uma vez por semana")
+    .when((freq_redes_1 == "Pelo menos uma vez por mês") | (freq_redes_2 == "Pelo menos uma vez por mês") |
+         (freq_redes_3 == "Pelo menos uma vez por mês"),"Pelo menos uma vez por mês")
+    .when((freq_redes_1 == "Menos de uma vez por mês") | (freq_redes_2 == "Menos de uma vez por mês") |
+         (freq_redes_3 == "Menos de uma vez por mês"),"Menos de uma vez por mês")
+    .otherwise("Não se aplica ou Não sabe/respondeu")
+)
+
+# dataset_teste = dataset_unificado.select("Em que ano a criança/adolescente está na escola?", "uso_rede_social","freq_rede_social").show(20000,truncate=False)
+
+# dataset_unificado.show(1, truncate=False)
 
 # tabela_UsoRedes_Série = dataset_unificado.select("ano", "uso_rede_social", "freq_rede_social", "Em que ano a criança/adolescente está na escola?").show(5, truncate=False)
-dataset_filtrado = dataset_unificado.filter(
-    col("Em que ano a criança/adolescente está na escola?").contains("Ensino Médio") &
+
+#BOANERGES sugeriu pegar todas as Series: (✓) || Feitas duas porcentagens para o intervalo dos anos 2017-2019 e 2021-2024
+#BOANERGES sugeriu unificar as colunas de Uso pelo Pandas: (✓) || Fiz com que se em uma das 3 colunas de uso tiver "Sim" o valor para a coluna unificada ser "Sim"
+#BOANERGES sugeriu unificar as colunas de Frequencia pelo Pandas: (✓) || Fiz com que o valor final seja sempre o valor com maior frequencia de uso das redes entre as 3 colunas
+#PORCENTAGEM DE USO:Por enquanto a porcentagem se limita as respostas Sim,Nao e Nao se aplica, preciso criar uma categoria
+#chamada Não se aplica ou Não sabe/respondeu(que pega as respostas:"Nao se aplica","Não sabe","Não respondeu"): (✓)
+#PORCENTAGEM DE USO: Quase perfeito, porém ainda existe uma resposta que não esta sendo contada visto que a porcentagem final nao da 100%, parece que o problema é o spark_round
+#GRAFICOS DE USO:Criar os graficos usando matplolib: (✗)
+#PORCENTAGEM DE FREQ: Fazer algo com a freq q nao fiz nada: (✗)
+#GRAFICOS DE FREQ:Criar os graficos usando matplolib: (✗)
+
+
+#Uso das redes até 2019:
+dataset_filtrado_2019 = dataset_unificado.filter(
     (col("Ano").cast("int") <= 2019)
 )
 
-total_alunos = dataset_filtrado.count()
+total_alunos_2019 = dataset_filtrado_2019.count()
 
-df_contagem = dataset_filtrado.groupBy("uso_rede_social").agg(count(lit(1)).alias("contagem")
+df_contagem_2019 = dataset_filtrado_2019.groupBy("uso_rede_social").agg(count(lit(1)).alias("contagem")
 )
-# groupby agrupa os valores da coluna em "equipes" de cada tipo de valor (sim,nao,nao se aplica), e o agg "agrupa", o lit cria uma
+#^groupby agrupa os valores da coluna em "equipes" de cada tipo de valor (sim,nao,nao se aplica), e o agg "agrupa", o lit cria uma
 # coluna temporaria que tera 1 em todas as linhas, e o agg vai somar todas as linhas,
 # assim teremos a contagem da quantidade de SIMs e NAOs
 
-df_porcentagem = df_contagem.withColumn(
+df_porcentagem_2019 = df_contagem_2019.withColumn(
     "porcentagem",
-    spark_round((col("contagem") / lit(total_alunos)) * 100, 2)
+    spark_round((col("contagem") / lit(total_alunos_2019)) * 100, 2)
 )
 
-
-valores_desejados = ["Sim", "Não", "Não se aplica"]
-df_porcentagem_final = df_porcentagem.filter(
+valores_desejados = ["Sim", "Não", "Não se aplica ou Não sabe/respondeu"]
+df_porcentagem_final_2019 = df_porcentagem_2019.filter(
     col("uso_rede_social").isin(valores_desejados)
 ).select(
     "uso_rede_social",
     "Porcentagem"
 ).orderBy(col("Porcentagem").desc())
 
-tabela_UsoRedes_EnsinoMedio = dataset_filtrado.select("Ano", "Em que ano a criança/adolescente está na escola?", "uso_rede_social").show(10, truncate=False)
+# tabela_UsoRedes__2019 = dataset_filtrado_2019.select("Ano", "Em que ano a criança/adolescente está na escola?", "uso_rede_social").show(10, truncate=False)
 
-print(f"Total de alunos do Ensino Médio (Ano <= 2019): {total_alunos}")
-print("\nPorcentagem de uso de mensagens (Whatsapp, Snapchat ou chat do Facebook):")
-df_porcentagem_final.show()
+print(f"Total de alunos 2017-2019: {total_alunos_2019} alunos ")
+print("Porcentagem de Uso das Redes Sociais:")
+df_porcentagem_final_2019.show()
+
+#Uso das redes até 2024:
+dataset_filtrado_2024 = dataset_unificado.filter(
+    (col("Ano").cast("int") <= 2024) & (col("Ano").cast("int") >= 2021)
+)
+
+total_alunos_2024 = dataset_filtrado_2024.count()
+
+df_contagem_2024 = dataset_filtrado_2024.groupBy("uso_rede_social").agg(count(lit(1)).alias("contagem")
+)
+# groupby agrupa os valores da coluna em "equipes" de cada tipo de valor (sim,nao,nao se aplica), e o agg "agrupa", o lit cria uma
+# coluna temporaria que tera 1 em todas as linhas, e o agg vai somar todas as linhas,
+# assim teremos a contagem da quantidade de SIMs e NAOs
+
+df_porcentagem_2024 = df_contagem_2024.withColumn(
+    "porcentagem",
+    spark_round((col("contagem") / lit(total_alunos_2024)) * 100, 2)
+)
+
+valores_desejados = ["Sim", "Não", "Não se aplica ou Não sabe/respondeu"]
+df_porcentagem_final_2024 = df_porcentagem_2024.filter(
+    col("uso_rede_social").isin(valores_desejados)
+).select(
+    "uso_rede_social",
+    "Porcentagem"
+).orderBy(col("Porcentagem").desc())
+
+# tabela_UsoRedes__2024 = dataset_filtrado_2024.select("Ano", "Em que ano a criança/adolescente está na escola?", "uso_rede_social").show(10, truncate=False)
+
+print(f"Total de alunos 2021-2024: {total_alunos_2024} alunos")
+print("Porcentagem de Uso das Redes Sociais:")
+df_porcentagem_final_2024.show()
 
 spark.stop()
