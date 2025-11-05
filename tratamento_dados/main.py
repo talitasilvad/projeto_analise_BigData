@@ -32,7 +32,7 @@ arquivos_tic_kids = [
 
 # ID_variável no dicionário
 variaveis_importantes = [
-    "ESC1", "COD_REGIAO_2", "M7A_B", "N1_C", "N2_C", "N1_H", "N2_H", "T12_D", "N1_G1","N2_G", "N2_G1"
+    "ESC1", "FAIXA_ETARIA", "COD_REGIAO_2", "M7A_B", "N1_C", "N2_C", "N1_H", "N2_H", "T12_D", "N1_G1","N2_G", "N2_G1"   
 ]
 
 for arquivo_microdados, arquivo_dicionario, arquivo_final_gerado in arquivos_tic_kids:
@@ -58,7 +58,7 @@ for arquivo_microdados, arquivo_dicionario, arquivo_final_gerado in arquivos_tic
                 for cond_legenda in conj_legenda.split("\n"):
                     if "=" in cond_legenda:
                         valor_numerico, texto = cond_legenda.split("=",1)
-                        tradutor[int(valor_numerico.strip())] = texto.strip().strip('""')
+                        tradutor[int(valor_numerico.strip())] = texto.strip().strip('“”"')
             if tradutor:
                 df_dados_filtrados[coluna] = df_dados_filtrados[coluna].replace(tradutor)
 
